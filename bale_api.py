@@ -53,6 +53,21 @@ def get_me() -> dict:
     return call("getMe", {})
 
 
+# وضعیت‌هایی که یعنی کاربر واقعاً عضو کانال/گروهه (نه لفت‌داده/کیک‌شده)
+_JOINED_STATUSES = {"creator", "administrator", "member", "restricted"}
+
+
+def is_channel_member(chat_username: str, user_id: int) -> bool:
+    """بررسی می‌کنه که آیا user_id عضو کانال chat_username (مثل "@my_channel") هست یا نه.
+    اگه به هر دلیلی نتونیم وضعیت رو بگیریم (مثلاً بات ادمین کانال نیست)، به‌صورت
+    محافظه‌کارانه False برمی‌گردونیم تا کاربر مجبور به عضویت بشه."""
+    result = call("getChatMember", {"chat_id": chat_username, "user_id": user_id})
+    if not result.get("ok"):
+        return False
+    status = (result.get("result") or {}).get("status")
+    return status in _JOINED_STATUSES
+
+
 # --- کیبوردهای پرکاربرد ---
 
 def inline_keyboard(rows: list[list[dict]]) -> dict:

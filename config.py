@@ -31,3 +31,10 @@ DB_PATH = os.getenv("DB_PATH", "data.db")
 
 # پورت اجرای فلَسک (برای اجرای لوکال/توسعه)
 PORT = int(os.getenv("PORT", "5000"))
+
+# کانال‌هایی که عضویت در اون‌ها برای استفاده از بات اجباریه (عضویت اجباری)
+# username کانال باید دقیقاً همونی باشه که در getChatMember پاس داده می‌شه (با @)
+REQUIRED_CHANNELS = [
+    {"username": "@sharif_for_iran", "title": "شریف برای ایران"},
+    {"username": "@rahbar_ir", "title": "رهبر ایران"},
+]

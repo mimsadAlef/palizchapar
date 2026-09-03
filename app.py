@@ -56,12 +56,47 @@ def open_miniapp_keyboard():
     return bale_api.mini_app_button("💬 باز کردن مینی‌اپ", miniapp_url())
 
 
+# --------------------------------------------------------------------------
+# عضویت اجباری در کانال‌ها - قبل از پردازش هر پیام (چه کاربر عادی چه ادمین)
+# --------------------------------------------------------------------------
+def get_missing_channels(user_id: int) -> list[dict]:
+    """لیست کانال‌هایی که کاربر هنوز عضوشون نشده رو برمی‌گردونه (خالی یعنی همه رو داره)."""
+    missing = []
+    for ch in config.REQUIRED_CHANNELS:
+        if not bale_api.is_channel_member(ch["username"], user_id):
+            missing.append(ch)
+    return missing
+
+
+def join_prompt_keyboard(missing: list[dict]) -> dict:
+    rows = [
+        [{"text": f"عضویت در {ch['title']}", "url": f"https://ble.ir/{ch['username'].lstrip('@')}"}]
+        for ch in missing
+    ]
+    rows.append([{"text": "✅ عضو شدم، بررسی کن", "callback_data": "check_membership"}])
+    return bale_api.inline_keyboard(rows)
+
+
+def send_join_prompt(chat_id: int, missing: list[dict]):
+    bale_api.send_message(
+        chat_id,
+        "برای استفاده از بات، اول باید توی کانال‌های زیر عضو بشی:",
+        reply_markup=join_prompt_keyboard(missing),
+    )
+
+
 def handle_message(message: dict):
     chat = message.get("chat", {})
     chat_id = chat.get("id")
     if chat_id is None:
         return
     text = (message.get("text") or "").strip()
+
+    # عضویت اجباری: قبل از پردازش هر پیام (چه از ادمین چه از کاربر عادی) چک می‌شه
+    missing = get_missing_channels(chat_id)
+    if missing:
+        send_join_prompt(chat_id, missing)
+        return
 
     # اگر کاربر شماره تلفنش رو از طریق دکمه‌ی اشتراک مخاطب فرستاده باشه
     contact = message.get("contact")
@@ -163,6 +198,23 @@ def handle_callback(callback_query: dict):
 
     db.get_or_create_user(chat_id)
 
+    if data == "check_membership":
+        missing = get_missing_channels(chat_id)
+        if missing:
+            bale_api.answer_callback_query(cq_id, "هنوز توی همه‌ی کانال‌ها عضو نشدی ❌")
+            send_join_prompt(chat_id, missing)
+        else:
+            bale_api.answer_callback_query(cq_id, "عضویت تأیید شد ✅")
+            bale_api.send_message(chat_id, "عضویتت تأیید شد ✅ حالا می‌تونی از بات استفاده کنی. /start رو بزن.")
+        return
+
+    # از اینجا به بعد هم عضویت رو چک می‌کنیم (کال‌بک‌های مربوط به نام مستعار و ...)
+    missing = get_missing_channels(chat_id)
+    if missing:
+        bale_api.answer_callback_query(cq_id)
+        send_join_prompt(chat_id, missing)
+        return
+
     if data == "set_nick":
         db.set_awaiting_nick(chat_id, True)
         bale_api.send_message(chat_id, "اسم مستعارت رو بفرست:")
@@ -216,10 +268,15 @@ def api_phone():
     chat_id = _auth(body.get("initData", ""))
     if chat_id is None:
         return jsonify({"ok": False, "error": "invalid_init_data"}), 401
+
+    user = db.get_or_create_user(chat_id)
+    # فقط از کسی که با توکن ادمین استارت کرده (is_admin=1) توی مینی‌اپ شماره گرفته می‌شه
+    if not user["is_admin"]:
+        return jsonify({"ok": False, "error": "phone_only_for_admin"}), 403
+
     phone = (body.get("phone") or "").strip()
     if not phone:
         return jsonify({"ok": False, "error": "phone_required"}), 400
-    db.get_or_create_user(chat_id)
     db.set_phone(chat_id, phone)
     return jsonify({"ok": True})
 
@@ -278,6 +335,16 @@ def api_send():
     chat_id = _auth(body.get("initData", ""))
     if chat_id is None:
         return jsonify({"ok": False, "error": "invalid_init_data"}), 401
+
+    # عضویت اجباری: قبل از ارسال هر پیام از مینی‌اپ هم چک می‌شه (چه ادمین چه کاربر عادی)
+    missing = get_missing_channels(chat_id)
+    if missing:
+        return jsonify({
+            "ok": False,
+            "error": "not_member",
+            "missing": [{"username": c["username"], "title": c["title"],
+                         "url": f"https://ble.ir/{c['username'].lstrip('@')}"} for c in missing],
+        }), 403
 
     text = (body.get("text") or "").strip()
     if not text:

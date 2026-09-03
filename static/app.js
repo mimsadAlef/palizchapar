@@ -54,7 +54,8 @@ async function boot() {
   }
   profile = auth;
 
-  if (!profile.phone) {
+  // شماره تلفن فقط از کسی که با توکن ادمین وارد شده گرفته می‌شه
+  if (profile.is_admin && !profile.phone) {
     showOnly("phone-step");
     return;
   }
@@ -66,6 +67,11 @@ async function boot() {
     showOnly("user-view");
     loadUserMessages();
   }
+}
+
+function showJoinAlert(missing) {
+  const lines = (missing || []).map((c) => `• ${c.title}: ${c.url}`).join("\n");
+  alert("برای ادامه، اول باید توی این کانال‌ها عضو بشی و بعد دوباره تلاش کنی:\n\n" + lines);
 }
 
 // ---------------- دریافت شماره تلفن ----------------
@@ -128,7 +134,11 @@ el("send-form").addEventListener("submit", async (e) => {
   if (!text) return;
   input.value = "";
   const r = await api("/api/send", { text });
-  if (r.ok) loadUserMessages();
+  if (r.ok) {
+    loadUserMessages();
+  } else if (r.error === "not_member") {
+    showJoinAlert(r.missing);
+  }
 });
 
 // ---------------- پنل ادمین ----------------
@@ -179,7 +189,11 @@ el("admin-send-form").addEventListener("submit", async (e) => {
   if (!text || !currentTarget) return;
   input.value = "";
   const r = await api("/api/send", { text, target_chat_id: currentTarget });
-  if (r.ok) refreshThread();
+  if (r.ok) {
+    refreshThread();
+  } else if (r.error === "not_member") {
+    showJoinAlert(r.missing);
+  }
 });
 
 function escapeHtml(str) {
