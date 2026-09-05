@@ -36,6 +36,5 @@ PORT = int(os.getenv("PORT", "5000"))
 # کانال‌هایی که عضویت در اون‌ها برای استفاده از بات اجباریه (عضویت اجباری)
 # username کانال باید دقیقاً همونی باشه که در getChatMember پاس داده می‌شه (با @)
 REQUIRED_CHANNELS = [
-    {"username": "@sharif_for_iran", "title": "شریف برای ایران"},
-    {"username": "@rahbar_ir", "title": "رهبر ایران"},
+    {"username": "@bonyad_shahidpalizvani", "title": "بنیاد شهید پالیزوانی"},
 ]

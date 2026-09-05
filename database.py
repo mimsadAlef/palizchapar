@@ -4,7 +4,6 @@
 دقیقاً مثل قبل با row["field"] کار کنه.
 """
 import time
-import uuid
 import contextlib
 
 from psycopg.rows import dict_row
@@ -13,6 +12,10 @@ from psycopg_pool import ConnectionPool
 import config
 
 SCHEMA_STATEMENTS = [
+    # شماره‌ی uuid کاربران از این sequence گرفته می‌شه (متوالی، از ۱ شروع می‌شه
+    # و به‌صورت ۰۰۰۱، ۰۰۰۲، ... نمایش داده می‌شه). استفاده از sequence دیتابیس
+    # باعث می‌شه حتی زیر بار همزمان هم شماره‌ها تکراری نشن.
+    "CREATE SEQUENCE IF NOT EXISTS user_uuid_seq START 1",
     """
     CREATE TABLE IF NOT EXISTS users (
         chat_id         BIGINT PRIMARY KEY,
@@ -87,11 +90,11 @@ def get_or_create_user(chat_id: int) -> dict:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM users WHERE chat_id=%s", (chat_id,)).fetchone()
         if row is None:
-            new_uuid = str(uuid.uuid4())
+            # uuid به‌صورت متوالی از خود دیتابیس گرفته می‌شه: ۰۰۰۱، ۰۰۰۲، ...
             conn.execute(
                 "INSERT INTO users (chat_id, uuid, nickname, phone, is_admin, is_blocked, awaiting_nick, created_at) "
-                "VALUES (%s, %s, NULL, NULL, FALSE, FALSE, FALSE, %s)",
-                (chat_id, new_uuid, time.time()),
+                "VALUES (%s, lpad(nextval('user_uuid_seq')::text, 4, '0'), NULL, NULL, FALSE, FALSE, FALSE, %s)",
+                (chat_id, time.time()),
             )
             row = conn.execute("SELECT * FROM users WHERE chat_id=%s", (chat_id,)).fetchone()
         return row
