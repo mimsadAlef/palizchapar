@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bale
+      POSTGRES_PASSWORD: bale
+      POSTGRES_DB: anon_bale_bot
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bale -d anon_bale_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # این مقدار همیشه به سرویس db داخل شبکه‌ی داکر اشاره می‌کنه؛
+      # هر مقدار DATABASE_URL که در .env گذاشته باشی، اینجا override می‌شه.
+      DATABASE_URL: postgresql://bale:bale@db:5432/anon_bale_bot
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+
+volumes:
+  db_data:

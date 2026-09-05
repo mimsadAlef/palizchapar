@@ -26,8 +26,9 @@ WEBHOOK_SECRET_PATH = os.getenv("WEBHOOK_SECRET_PATH", "change-this-secret")
 # و فقط لینک آن (t.me مانند بله: ble.ir/YOUR_BOT?start=TOKEN) را به ادمین بدهید.
 ADMIN_START_TOKEN = os.getenv("ADMIN_START_TOKEN", "change-this-admin-token")
 
-# مسیر فایل دیتابیس sqlite
-DB_PATH = os.getenv("DB_PATH", "data.db")
+# مسیر فایل دیتابیس (dsn اتصال به PostgreSQL)
+# مثال: postgresql://user:password@localhost:5432/dbname
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bale:bale@localhost:5432/anon_bale_bot")
 
 # پورت اجرای فلَسک (برای اجرای لوکال/توسعه)
 PORT = int(os.getenv("PORT", "5000"))

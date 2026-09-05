@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>پیام ناشناس</title>
+<title>پنل ادمین</title>
 <!-- اسکریپت رسمی مینی‌اپ بله - باید قبل از هر اسکریپت دیگه لود بشه -->
 <script src="https://tapi.bale.ai/miniapp.js?3"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -12,24 +12,16 @@
   <div id="app">
     <div id="loading" class="center-box">در حال بارگذاری…</div>
 
-    <!-- مرحله‌ی دریافت شماره تلفن -->
+    <!-- کاربر عادی / غیرادمین اجازه‌ی ورود نداره -->
+    <div id="unauthorized" class="center-box hidden">
+      <p>🚫 این بخش فقط برای مدیر بات در دسترسه.</p>
+    </div>
+
+    <!-- مرحله‌ی دریافت شماره تلفن ادمین -->
     <div id="phone-step" class="center-box hidden">
       <p>برای ورود به پنل ادمین، لطفاً شماره تلفنت رو به اشتراک بذار.</p>
       <button id="share-phone-btn" class="primary-btn">📱 اشتراک‌گذاری شماره تلفن</button>
       <p class="hint">اگه دکمه کار نکرد، برگرد به چت بات و شماره‌ت رو از همون‌جا بفرست.</p>
-    </div>
-
-    <!-- صفحه‌ی کاربر عادی: مثل چت -->
-    <div id="user-view" class="hidden">
-      <header class="topbar">
-        <span>💬 پیام ناشناس</span>
-        <button id="nickname-btn" class="icon-btn">✏️</button>
-      </header>
-      <div id="messages" class="messages"></div>
-      <form id="send-form" class="send-bar">
-        <input id="text-input" type="text" placeholder="پیامت رو بنویس…" autocomplete="off" />
-        <button type="submit" class="primary-btn">ارسال</button>
-      </form>
     </div>
 
     <!-- پنل ادمین -->
@@ -38,7 +30,12 @@
       <div id="admin-body" class="admin-body">
         <div id="thread-list" class="thread-list"></div>
         <div id="thread-detail" class="thread-detail hidden">
-          <button id="back-btn" class="icon-btn">→ برگشت</button>
+          <div class="thread-toolbar">
+            <button id="back-btn" class="icon-btn">→ برگشت</button>
+            <span id="thread-title" class="thread-title"></span>
+            <button id="block-btn" class="danger-btn small-btn">مسدود کردن</button>
+            <button id="delete-btn" class="danger-btn small-btn">حذف گفتگو</button>
+          </div>
           <div id="admin-messages" class="messages"></div>
           <form id="admin-send-form" class="send-bar">
             <input id="admin-text-input" type="text" placeholder="پاسخ…" autocomplete="off" />

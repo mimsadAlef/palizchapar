@@ -10,19 +10,15 @@ app = Flask(__name__)
 DEV_MODE = os.getenv("DEV_MODE", "0") == "1"
 
 # جدول‌های دیتابیس رو همین‌جا (زمان import شدن ماژول) می‌سازیم، نه فقط
-# داخل if __name__ == "__main__"، چون با gunicorn/uwsgi اون بلوک اجرا نمی‌شه
-# و در نتیجه جدول‌ها هیچ‌وقت ساخته نمی‌شدن (خطای "no such table: users").
+# داخل if __name__ == "__main__"، چون با gunicorn/uwsgi اون بلوک اجرا نمی‌شه.
 db.init_db()
-
-ANONYMOUS_LABEL = "کاربر ناشناس"
 
 WELCOME_TEXT = (
     "سلام! 👋\n"
     "به بات پیام ناشناس خوش اومدی.\n\n"
     "هر پیامی که برام بفرستی، کاملاً ناشناس برای ادمین ارسال می‌شه.\n"
     "اگه دوست داری، می‌تونی یه نام مستعار برای خودت انتخاب کنی (اختیاریه) "
-    "یا از دکمه‌ی زیر رد بشی.\n\n"
-    "همچنین می‌تونی از طریق مینی‌اپ هم مثل یه چت پیام‌هات رو بفرستی و ببینی."
+    "یا از دکمه‌ی زیر رد بشی."
 )
 
 
@@ -53,7 +49,7 @@ def nickname_choice_keyboard():
 
 
 def open_miniapp_keyboard():
-    return bale_api.mini_app_button("💬 باز کردن مینی‌اپ", miniapp_url())
+    return bale_api.mini_app_button("🛠 باز کردن پنل ادمین", miniapp_url())
 
 
 # --------------------------------------------------------------------------
@@ -61,18 +57,15 @@ def open_miniapp_keyboard():
 # --------------------------------------------------------------------------
 def get_missing_channels(user_id: int) -> list[dict]:
     """لیست کانال‌هایی که کاربر هنوز عضوشون نشده رو برمی‌گردونه (خالی یعنی همه رو داره)."""
-    missing = []
-    for ch in config.REQUIRED_CHANNELS:
-        if not bale_api.is_channel_member(ch["username"], user_id):
-            missing.append(ch)
-    return missing
+    return [ch for ch in config.REQUIRED_CHANNELS if not bale_api.is_channel_member(ch["username"], user_id)]
+
+
+def channel_url(channel: dict) -> str:
+    return f"https://ble.ir/{channel['username'].lstrip('@')}"
 
 
 def join_prompt_keyboard(missing: list[dict]) -> dict:
-    rows = [
-        [{"text": f"عضویت در {ch['title']}", "url": f"https://ble.ir/{ch['username'].lstrip('@')}"}]
-        for ch in missing
-    ]
+    rows = [[{"text": f"عضویت در {ch['title']}", "url": channel_url(ch)}] for ch in missing]
     rows.append([{"text": "✅ عضو شدم، بررسی کن", "callback_data": "check_membership"}])
     return bale_api.inline_keyboard(rows)
 
@@ -85,12 +78,33 @@ def send_join_prompt(chat_id: int, missing: list[dict]):
     )
 
 
+# --------------------------------------------------------------------------
+# پیام‌های سیستمی (مثل تغییر نام مستعار) که در گفتگوی کاربر برای ادمین ثبت می‌شن
+# --------------------------------------------------------------------------
+def log_nickname_change(chat_id: int, user_before: dict, old_nickname: str | None, new_nickname: str | None):
+    old_label = old_nickname or db.default_nickname(user_before)
+    new_label = new_nickname or db.default_nickname(user_before)
+    if old_label == new_label:
+        return
+    db.add_message(
+        chat_id, None,
+        f"🔄 کاربر نام مستعارش رو از «{old_label}» به «{new_label}» تغییر داد.",
+        direction="system",
+    )
+
+
 def handle_message(message: dict):
     chat = message.get("chat", {})
     chat_id = chat.get("id")
     if chat_id is None:
         return
     text = (message.get("text") or "").strip()
+
+    user = db.get_or_create_user(chat_id)
+
+    if user["is_blocked"]:
+        bale_api.send_message(chat_id, "🚫 شما توسط مدیر مسدود شده‌اید و امکان استفاده از این بات رو ندارید.")
+        return
 
     # عضویت اجباری: قبل از پردازش هر پیام (چه از ادمین چه از کاربر عادی) چک می‌شه
     missing = get_missing_channels(chat_id)
@@ -101,7 +115,6 @@ def handle_message(message: dict):
     # اگر کاربر شماره تلفنش رو از طریق دکمه‌ی اشتراک مخاطب فرستاده باشه
     contact = message.get("contact")
     if contact and contact.get("phone_number"):
-        db.get_or_create_user(chat_id)
         db.set_phone(chat_id, contact["phone_number"])
         bale_api.send_message(chat_id, "شماره‌ت با موفقیت ثبت شد ✅", reply_markup=bale_api.remove_keyboard())
         return
@@ -112,17 +125,15 @@ def handle_message(message: dict):
         return handle_start(chat_id, payload)
 
     if text == "/nickname":
-        db.get_or_create_user(chat_id)
         db.set_awaiting_nick(chat_id, True)
         bale_api.send_message(chat_id, "اسم مستعار جدیدت رو بفرست:")
         return
 
-    user = db.get_or_create_user(chat_id)
-
     if user["awaiting_nick"]:
         nickname = text[:32] if text else None
-        db.set_nickname(chat_id, nickname)
-        bale_api.send_message(chat_id, f"نام مستعارت ثبت شد: «{nickname}» ✅")
+        old_nickname = db.set_nickname(chat_id, nickname)
+        log_nickname_change(chat_id, user, old_nickname, nickname)
+        bale_api.send_message(chat_id, f"نام مستعارت ثبت شد: «{nickname or db.default_nickname(user)}» ✅")
         return
 
     if not text:
@@ -143,12 +154,12 @@ def handle_message(message: dict):
             return
 
     # حالت عادی: پیام ناشناس کاربر به سمت ادمین(ها)
-    forward_to_admins(chat_id, user["nickname"], text)
+    forward_to_admins(chat_id, user, text)
 
 
-def forward_to_admins(sender_chat_id: int, nickname: str | None, text: str):
-    db.add_message(sender_chat_id, nickname, text, direction="in")
-    display_name = nickname or ANONYMOUS_LABEL
+def forward_to_admins(sender_chat_id: int, user: dict, text: str):
+    db.add_message(sender_chat_id, user["nickname"], text, direction="in")
+    display = db.display_name(user)
     admin_ids = db.list_admin_chat_ids()
     if not admin_ids:
         bale_api.send_message(sender_chat_id, "پیامت دریافت شد، ولی فعلاً ادمینی برای پاسخ ثبت نشده.")
@@ -156,7 +167,7 @@ def forward_to_admins(sender_chat_id: int, nickname: str | None, text: str):
     for admin_id in admin_ids:
         result = bale_api.send_message(
             admin_id,
-            f"📨 پیام جدید از «{display_name}»:\n\n{text}\n\n"
+            f"📨 پیام جدید از «{display}»:\n\n{text}\n\n"
             f"برای پاسخ ناشناس، روی همین پیام ریپلای بزن.",
         )
         forwarded_msg = (result.get("result") or {})
@@ -167,8 +178,6 @@ def forward_to_admins(sender_chat_id: int, nickname: str | None, text: str):
 
 
 def handle_start(chat_id: int, payload: str):
-    db.get_or_create_user(chat_id)
-
     if payload and payload == config.ADMIN_START_TOKEN:
         db.mark_admin(chat_id)
         bale_api.send_message(
@@ -185,7 +194,6 @@ def handle_start(chat_id: int, payload: str):
         return
 
     bale_api.send_message(chat_id, WELCOME_TEXT, reply_markup=nickname_choice_keyboard())
-    bale_api.send_message(chat_id, "همچنین می‌تونی مینی‌اپ رو باز کنی:", reply_markup=open_miniapp_keyboard())
 
 
 def handle_callback(callback_query: dict):
@@ -196,7 +204,11 @@ def handle_callback(callback_query: dict):
     if chat_id is None:
         return
 
-    db.get_or_create_user(chat_id)
+    user = db.get_or_create_user(chat_id)
+
+    if user["is_blocked"]:
+        bale_api.answer_callback_query(cq_id, "🚫 شما مسدود شده‌اید.")
+        return
 
     if data == "check_membership":
         missing = get_missing_channels(chat_id)
@@ -219,28 +231,37 @@ def handle_callback(callback_query: dict):
         db.set_awaiting_nick(chat_id, True)
         bale_api.send_message(chat_id, "اسم مستعارت رو بفرست:")
     elif data == "skip_nick":
-        db.set_nickname(chat_id, None)
-        bale_api.send_message(chat_id, "باشه، پیام‌هات به صورت «کاربر ناشناس» ارسال می‌شن.")
+        old_nickname = db.set_nickname(chat_id, None)
+        log_nickname_change(chat_id, user, old_nickname, None)
+        bale_api.send_message(chat_id, f"باشه، پیام‌هات به‌صورت «{db.default_nickname(user)}» ارسال می‌شن.")
 
     bale_api.answer_callback_query(cq_id)
 
 
 # --------------------------------------------------------------------------
-# مینی‌اپ: صفحه‌ی وب + API
+# مینی‌اپ: فقط پنل ادمین (کاربر عادی به این بخش دسترسی نداره)
 # --------------------------------------------------------------------------
 @app.route("/miniapp")
 def miniapp_page():
     return render_template("miniapp.html", dev_mode=DEV_MODE)
 
 
-def _auth(init_data: str):
-    parsed = validate_init_data(init_data)
+def _auth_chat_id(body: dict) -> int | None:
+    """initData رو اعتبارسنجی می‌کنه و chat_id رو برمی‌گردونه (بدون چک نقش)."""
+    parsed = validate_init_data(body.get("initData", ""))
     if parsed is None and DEV_MODE:
-        parsed = dev_bypass(init_data)
+        parsed = dev_bypass(body.get("initData", ""))
     if parsed is None:
         return None
-    chat_id = extract_chat_id(parsed)
+    return extract_chat_id(parsed)
+
+
+def _auth_admin(body: dict) -> int | None:
+    """مینی‌اپ فقط برای ادمینه؛ اگه کاربر ادمین نباشه None برمی‌گردونه."""
+    chat_id = _auth_chat_id(body)
     if chat_id is None:
+        return None
+    if not db.is_admin(chat_id):
         return None
     return chat_id
 
@@ -248,31 +269,23 @@ def _auth(init_data: str):
 @app.route("/api/auth", methods=["POST"])
 def api_auth():
     body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
+    chat_id = _auth_chat_id(body)
     if chat_id is None:
         return jsonify({"ok": False, "error": "invalid_init_data"}), 401
 
     user = db.get_or_create_user(chat_id)
-    return jsonify({
-        "ok": True,
-        "chat_id": chat_id,
-        "nickname": user["nickname"],
-        "phone": user["phone"],
-        "is_admin": bool(user["is_admin"]),
-    })
+    if not user["is_admin"]:
+        return jsonify({"ok": False, "error": "admin_only"}), 403
+
+    return jsonify({"ok": True, "chat_id": chat_id, "phone": user["phone"]})
 
 
 @app.route("/api/phone", methods=["POST"])
 def api_phone():
     body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
+    chat_id = _auth_admin(body)
     if chat_id is None:
-        return jsonify({"ok": False, "error": "invalid_init_data"}), 401
-
-    user = db.get_or_create_user(chat_id)
-    # فقط از کسی که با توکن ادمین استارت کرده (is_admin=1) توی مینی‌اپ شماره گرفته می‌شه
-    if not user["is_admin"]:
-        return jsonify({"ok": False, "error": "phone_only_for_admin"}), 403
+        return jsonify({"ok": False, "error": "forbidden"}), 403
 
     phone = (body.get("phone") or "").strip()
     if not phone:
@@ -281,87 +294,93 @@ def api_phone():
     return jsonify({"ok": True})
 
 
-@app.route("/api/nickname", methods=["POST"])
-def api_nickname():
-    body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
-    if chat_id is None:
-        return jsonify({"ok": False, "error": "invalid_init_data"}), 401
-    nickname = (body.get("nickname") or "").strip()[:32] or None
-    db.get_or_create_user(chat_id)
-    db.set_nickname(chat_id, nickname)
-    return jsonify({"ok": True, "nickname": nickname})
-
-
 @app.route("/api/messages", methods=["POST"])
 def api_messages():
-    """برای کاربر عادی: کل نخ پیام‌های خودش.
-    برای ادمین: لیست تمام نخ‌های کاربران (خلاصه)."""
+    """لیست خلاصه‌ی گفتگوها برای پنل ادمین."""
     body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
+    chat_id = _auth_admin(body)
     if chat_id is None:
-        return jsonify({"ok": False, "error": "invalid_init_data"}), 401
+        return jsonify({"ok": False, "error": "forbidden"}), 403
 
-    user = db.get_or_create_user(chat_id)
-
-    if user["is_admin"]:
-        threads = db.list_threads_for_admin()
-        return jsonify({"ok": True, "is_admin": True, "threads": [dict(t) for t in threads]})
-
-    thread = db.get_thread(chat_id)
-    return jsonify({"ok": True, "is_admin": False, "messages": [dict(m) for m in thread]})
+    threads = db.list_threads_for_admin()
+    return jsonify({"ok": True, "threads": threads})
 
 
 @app.route("/api/thread", methods=["POST"])
 def api_thread():
-    """فقط برای ادمین: مشاهده‌ی کامل گفتگو با یک کاربر خاص."""
+    """مشاهده‌ی کامل گفتگو با یک کاربر خاص."""
     body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
+    chat_id = _auth_admin(body)
     if chat_id is None:
-        return jsonify({"ok": False, "error": "invalid_init_data"}), 401
-    if not db.is_admin(chat_id):
         return jsonify({"ok": False, "error": "forbidden"}), 403
 
     target = body.get("target_chat_id")
     if target is None:
         return jsonify({"ok": False, "error": "target_chat_id_required"}), 400
     thread = db.get_thread(int(target))
-    return jsonify({"ok": True, "messages": [dict(m) for m in thread]})
+    return jsonify({"ok": True, "messages": thread})
 
 
 @app.route("/api/send", methods=["POST"])
 def api_send():
+    """ارسال پاسخ ناشناس ادمین به یک کاربر."""
     body = request.get_json(silent=True) or {}
-    chat_id = _auth(body.get("initData", ""))
+    chat_id = _auth_admin(body)
     if chat_id is None:
-        return jsonify({"ok": False, "error": "invalid_init_data"}), 401
+        return jsonify({"ok": False, "error": "forbidden"}), 403
 
-    # عضویت اجباری: قبل از ارسال هر پیام از مینی‌اپ هم چک می‌شه (چه ادمین چه کاربر عادی)
+    # عضویت اجباری برای ادمین هم برقراره
     missing = get_missing_channels(chat_id)
     if missing:
         return jsonify({
             "ok": False,
             "error": "not_member",
-            "missing": [{"username": c["username"], "title": c["title"],
-                         "url": f"https://ble.ir/{c['username'].lstrip('@')}"} for c in missing],
+            "missing": [{"username": c["username"], "title": c["title"], "url": channel_url(c)} for c in missing],
         }), 403
 
     text = (body.get("text") or "").strip()
-    if not text:
-        return jsonify({"ok": False, "error": "text_required"}), 400
+    target = body.get("target_chat_id")
+    if not text or target is None:
+        return jsonify({"ok": False, "error": "text_and_target_required"}), 400
+    target = int(target)
 
-    user = db.get_or_create_user(chat_id)
+    db.add_message(target, None, text, direction="out", admin_chat_id=chat_id)
+    bale_api.send_message(target, f"📩 پاسخ ادمین:\n{text}")
+    return jsonify({"ok": True})
 
-    if user["is_admin"]:
-        target = body.get("target_chat_id")
-        if target is None:
-            return jsonify({"ok": False, "error": "target_chat_id_required"}), 400
-        target = int(target)
-        db.add_message(target, None, text, direction="out", admin_chat_id=chat_id)
-        bale_api.send_message(target, f"📩 پاسخ ادمین:\n{text}")
-        return jsonify({"ok": True})
 
-    forward_to_admins(chat_id, user["nickname"], text)
+@app.route("/api/block", methods=["POST"])
+def api_block():
+    """مسدود/رفع مسدودی یک کاربر توسط ادمین."""
+    body = request.get_json(silent=True) or {}
+    chat_id = _auth_admin(body)
+    if chat_id is None:
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    target = body.get("target_chat_id")
+    if target is None:
+        return jsonify({"ok": False, "error": "target_chat_id_required"}), 400
+    target = int(target)
+    if target == chat_id:
+        return jsonify({"ok": False, "error": "cannot_block_self"}), 400
+
+    blocked = bool(body.get("blocked"))
+    db.set_blocked(target, blocked)
+    return jsonify({"ok": True, "blocked": blocked})
+
+
+@app.route("/api/delete_thread", methods=["POST"])
+def api_delete_thread():
+    """حذف کامل گفتگوی یک کاربر توسط ادمین."""
+    body = request.get_json(silent=True) or {}
+    chat_id = _auth_admin(body)
+    if chat_id is None:
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    target = body.get("target_chat_id")
+    if target is None:
+        return jsonify({"ok": False, "error": "target_chat_id_required"}), 400
+    db.delete_thread(int(target))
     return jsonify({"ok": True})
 
 
