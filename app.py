@@ -15,10 +15,10 @@ db.init_db()
 
 WELCOME_TEXT = (
     "سلام! 👋\n"
-    "به بات پیام ناشناس خوش اومدی.\n\n"
-    "هر پیامی که برام بفرستی، کاملاً ناشناس برای ادمین ارسال می‌شه.\n"
-    "اگه دوست داری، می‌تونی یه نام مستعار برای خودت انتخاب کنی (اختیاریه) "
-    "یا از دکمه‌ی زیر رد بشی."
+    "به بات پیام ناشناس بنیاد شهید پالیزوانی(ره) خوش اومدی.\n\n"
+    "هر پیامی که برام بفرستی، کاملاً ناشناس برای مدیران کانال ارسال می‌شه.\n"
+    "توی بخش زیر میتونی برای خودت نام مستعار انتخاب کنی "
+    "و اگر مایل نیستی میتونی «ناشناس بمونم» رو انتخاب کنی."
 )
 
 
@@ -44,7 +44,7 @@ def miniapp_url() -> str:
 def nickname_choice_keyboard():
     return bale_api.inline_keyboard([
         [{"text": "✏️ انتخاب نام مستعار", "callback_data": "set_nick"}],
-        [{"text": "⏭ رد کردن (ناشناس بمونم)", "callback_data": "skip_nick"}],
+        [{"text": "👤 ناشناس بمونم", "callback_data": "skip_nick"}],
     ])
 
 
@@ -93,6 +93,11 @@ def log_nickname_change(chat_id: int, user_before: dict, old_nickname: str | Non
     )
 
 
+def ready_to_send_text(label: str) -> str:
+    """پیامی که بعد از انتخاب یا رد کردن نام مستعار (در هر دو حالت) نشون داده می‌شه."""
+    return f"{label} عزیز حالا می‌تونی پیامت رو برام ارسال کنی تا من به‌صورت ناشناس به مدیران کانال منتقلش کنم."
+
+
 def handle_message(message: dict):
     chat = message.get("chat", {})
     chat_id = chat.get("id")
@@ -126,14 +131,16 @@ def handle_message(message: dict):
 
     if text == "/nickname":
         db.set_awaiting_nick(chat_id, True)
-        bale_api.send_message(chat_id, "اسم مستعار جدیدت رو بفرست:")
+        bale_api.send_message(chat_id, "نام مستعار جدیدت رو بنویس:")
         return
 
     if user["awaiting_nick"]:
         nickname = text[:32] if text else None
         old_nickname = db.set_nickname(chat_id, nickname)
         log_nickname_change(chat_id, user, old_nickname, nickname)
-        bale_api.send_message(chat_id, f"نام مستعارت ثبت شد: «{nickname or db.default_nickname(user)}» ✅")
+        label = nickname or db.default_nickname(user)
+        bale_api.send_message(chat_id, f"نام مستعارت ثبت شد: «{label}» ✅")
+        bale_api.send_message(chat_id, ready_to_send_text(label))
         return
 
     if not text:
@@ -229,11 +236,13 @@ def handle_callback(callback_query: dict):
 
     if data == "set_nick":
         db.set_awaiting_nick(chat_id, True)
-        bale_api.send_message(chat_id, "اسم مستعارت رو بفرست:")
+        bale_api.send_message(chat_id, "نام مستعارت رو بنویس:")
     elif data == "skip_nick":
         old_nickname = db.set_nickname(chat_id, None)
         log_nickname_change(chat_id, user, old_nickname, None)
-        bale_api.send_message(chat_id, f"باشه، پیام‌هات به‌صورت «{db.default_nickname(user)}» ارسال می‌شن.")
+        label = db.default_nickname(user)
+        bale_api.send_message(chat_id, f"باشه، پیام‌هات به‌صورت «{label}» ارسال می‌شن.")
+        bale_api.send_message(chat_id, ready_to_send_text(label))
 
     bale_api.answer_callback_query(cq_id)
 
