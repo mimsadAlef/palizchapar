@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>پنل ادمین</title>
+<title>پنل مدیریت</title>
 <!-- اسکریپت رسمی مینی‌اپ بله - باید قبل از هر اسکریپت دیگه لود بشه -->
 <script src="https://tapi.bale.ai/miniapp.js?3"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -12,22 +12,28 @@
   <div id="app">
     <div id="loading" class="center-box">در حال بارگذاری…</div>
 
-    <!-- کاربر عادی / غیرادمین اجازه‌ی ورود نداره -->
+    <!-- کاربر عادی / بدون دسترسی اجازه‌ی ورود نداره -->
     <div id="unauthorized" class="center-box hidden">
-      <p>🚫 این بخش فقط برای مدیر بات در دسترسه.</p>
+      <p>🚫 این بخش فقط برای مدیران و مالک بات در دسترسه.</p>
     </div>
 
-    <!-- مرحله‌ی دریافت شماره تلفن ادمین -->
+    <!-- مرحله‌ی دریافت شماره تلفن -->
     <div id="phone-step" class="center-box hidden">
-      <p>برای ورود به پنل ادمین، لطفاً شماره تلفنت رو به اشتراک بذار.</p>
+      <p>برای ورود به پنل مدیریت، لطفاً شماره تلفنت رو به اشتراک بذار.</p>
       <button id="share-phone-btn" class="primary-btn">📱 اشتراک‌گذاری شماره تلفن</button>
       <p class="hint">اگه دکمه کار نکرد، برگرد به چت بات و شماره‌ت رو از همون‌جا بفرست.</p>
     </div>
 
-    <!-- پنل ادمین -->
-    <div id="admin-view" class="hidden">
-      <header class="topbar"><span>🛠 پنل ادمین</span></header>
-      <div id="admin-body" class="admin-body">
+    <!-- پنل اصلی -->
+    <div id="main-view" class="hidden">
+      <header class="topbar">
+        <span id="role-badge"></span>
+        <nav id="tabs" class="tabs"></nav>
+        <button id="resign-btn" class="icon-btn hidden" title="انصراف از مدیریت">🚪</button>
+      </header>
+
+      <!-- تب گفتگوها -->
+      <section id="tab-threads" class="tab-panel">
         <div id="thread-list" class="thread-list"></div>
         <div id="thread-detail" class="thread-detail hidden">
           <div class="thread-toolbar">
@@ -37,12 +43,35 @@
             <button id="delete-btn" class="danger-btn small-btn">حذف گفتگو</button>
           </div>
           <div id="admin-messages" class="messages"></div>
+          <div id="reply-preview-bar" class="reply-preview-bar hidden">
+            <span id="reply-preview-text"></span>
+            <button id="cancel-reply-btn" class="icon-btn">✖</button>
+          </div>
           <form id="admin-send-form" class="send-bar">
             <input id="admin-text-input" type="text" placeholder="پاسخ…" autocomplete="off" />
             <button type="submit" class="primary-btn">ارسال</button>
           </form>
         </div>
-      </div>
+      </section>
+
+      <!-- تب درخواست‌های مدیریت (فقط مالک) -->
+      <section id="tab-requests" class="tab-panel hidden">
+        <div id="requests-list" class="list-box"></div>
+      </section>
+
+      <!-- تب مدیران (فقط مالک) -->
+      <section id="tab-admins" class="tab-panel hidden">
+        <div id="admins-list" class="list-box"></div>
+      </section>
+
+      <!-- تب واحدها (فقط مالک) -->
+      <section id="tab-units" class="tab-panel hidden">
+        <form id="unit-create-form" class="unit-create-form">
+          <input id="unit-name-input" type="text" placeholder="نام واحد جدید…" autocomplete="off" />
+          <button type="submit" class="primary-btn">افزودن</button>
+        </form>
+        <div id="units-list" class="list-box"></div>
+      </section>
     </div>
   </div>
 

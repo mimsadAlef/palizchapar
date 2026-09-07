@@ -25,34 +25,58 @@ html, body {
   padding: 6px 10px; font-size: 12px; cursor: pointer;
 }
 .danger-btn.active { background: #c62828; color: #fff; }
-
 .small-btn { white-space: nowrap; }
+
+.ok-btn {
+  background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; cursor: pointer;
+}
 
 .icon-btn {
   background: transparent; border: none; font-size: 18px; cursor: pointer;
 }
 
-#admin-view { display: flex; flex-direction: column; height: 100vh; }
+#main-view { display: flex; flex-direction: column; height: 100vh; }
 
 .topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e5e5;
-  font-weight: bold;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; background: #fff; border-bottom: 1px solid #e5e5e5;
 }
+#role-badge { font-weight: bold; font-size: 13px; white-space: nowrap; }
+
+.tabs { flex: 1; display: flex; gap: 4px; overflow-x: auto; }
+.tab-btn {
+  border: none; background: #f0f2f5; color: #444; border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.tab-btn.active { background: #2b8aef; color: #fff; }
+
+.tab-panel { flex: 1; display: flex; overflow: hidden; }
+#tab-threads.tab-panel { display: flex; }
+.tab-panel:not(#tab-threads) { flex-direction: column; overflow-y: auto; padding: 10px; }
 
 .messages {
   flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;
 }
 .bubble {
   max-width: 75%; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.5;
-  white-space: pre-wrap; word-break: break-word;
+  white-space: pre-wrap; word-break: break-word; position: relative; cursor: pointer;
 }
 .bubble.me { align-self: flex-end; background: #2b8aef; color: #fff; border-bottom-left-radius: 4px; }
 .bubble.other { align-self: flex-start; background: #fff; border: 1px solid #e5e5e5; border-bottom-right-radius: 4px; }
+.bubble .quote {
+  display: block; font-size: 11px; opacity: .8; border-right: 2px solid currentColor;
+  padding-right: 6px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 .system-note {
   align-self: center; text-align: center; color: #888; font-size: 12px;
   background: #eee; border-radius: 10px; padding: 4px 10px; max-width: 90%;
+}
+
+.reply-preview-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #eef4ff; border-top: 1px solid #dce8fb; padding: 6px 10px; font-size: 12px;
 }
 
 .send-bar {
@@ -62,15 +86,15 @@ html, body {
   flex: 1; border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; font-size: 14px;
 }
 
-.admin-body { flex: 1; display: flex; overflow: hidden; }
 .thread-list { flex: 1; overflow-y: auto; }
 .thread-item {
   padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer; background: #fff;
 }
 .thread-item:active { background: #f0f0f0; }
-.thread-item .name { font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.thread-item .name { font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .thread-item .preview { font-size: 13px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .blocked-badge { font-size: 11px; background: #c62828; color: #fff; border-radius: 6px; padding: 1px 6px; }
+.unit-badge { font-size: 11px; background: #e3edfb; color: #2b5aa0; border-radius: 6px; padding: 1px 6px; }
 
 .thread-detail { flex: 1; display: flex; flex-direction: column; }
 .thread-toolbar {
@@ -78,3 +102,26 @@ html, body {
   background: #fff; border-bottom: 1px solid #e5e5e5;
 }
 .thread-title { flex: 1; font-size: 13px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.list-box { display: flex; flex-direction: column; gap: 8px; }
+.card {
+  background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.card .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card .title { font-weight: bold; font-size: 14px; }
+.card .meta { font-size: 12px; color: #888; }
+.card .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.unit-chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.unit-chip {
+  border: 1px solid #ddd; border-radius: 16px; padding: 4px 10px; font-size: 12px; cursor: pointer; user-select: none;
+}
+.unit-chip.selected { background: #2b8aef; color: #fff; border-color: #2b8aef; }
+
+.unit-create-form { display: flex; gap: 8px; margin-bottom: 10px; }
+.unit-create-form input {
+  flex: 1; border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; font-size: 14px;
+}
+
+.empty-hint { text-align: center; color: #999; font-size: 13px; padding: 20px; }

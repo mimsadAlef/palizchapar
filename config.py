@@ -22,9 +22,15 @@ WEBHOOK_SECRET_PATH = os.getenv("WEBHOOK_SECRET_PATH", "change-this-secret")
 
 # توکن مخصوص ورود ادمین - وقتی کسی ربات را با
 # /start <این توکن>
-# استارت کند، به عنوان ادمین ثبت می‌شود. این را محرمانه نگه دارید
-# و فقط لینک آن (t.me مانند بله: ble.ir/YOUR_BOT?start=TOKEN) را به ادمین بدهید.
+# استارت کند، درخواست مدیر شدنش ثبت می‌شه و برای تایید به مالک ارسال می‌شه.
+# این را محرمانه نگه دارید و فقط لینک آن (ble.ir/YOUR_BOT?start=TOKEN) را
+# به کسانی که می‌خواهید بتوانند درخواست مدیر شدن بدهند، بدهید.
 ADMIN_START_TOKEN = os.getenv("ADMIN_START_TOKEN", "change-this-admin-token")
+
+# شماره تلفن مالک بات. هر کسی که با دستور /owner و اشتراک‌گذاری مخاطب،
+# همین شماره رو تایید کنه، به‌عنوان مالک (owner) شناخته می‌شه.
+# فرمت دقیق مهم نیست (با یا بدون +98/0)، چون قبل از مقایسه نرمالایز می‌شه.
+OWNER_PHONE = os.getenv("OWNER_PHONE", "")
 
 # مسیر فایل دیتابیس (dsn اتصال به PostgreSQL)
 # مثال: postgresql://user:password@localhost:5432/dbname
@@ -32,6 +38,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bale:bale@localhost:5432/
 
 # پورت اجرای فلَسک (برای اجرای لوکال/توسعه)
 PORT = int(os.getenv("PORT", "5000"))
+
+# حالت توسعه: در این حالت مینی‌اپ بدون نیاز به اپ واقعی بله، با یک chat_id
+# دستی قابل تست‌شدنه. در production همیشه باید 0 باشه.
+DEV_MODE = os.getenv("DEV_MODE", "0") == "1"
 
 # کانال‌هایی که عضویت در اون‌ها برای استفاده از بات اجباریه (عضویت اجباری)
 # username کانال باید دقیقاً همونی باشه که در getChatMember پاس داده می‌شه (با @)
