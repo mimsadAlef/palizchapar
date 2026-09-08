@@ -41,6 +41,40 @@ function showJoinAlert(missing) {
   alert("برای ادامه، اول باید توی این کانال‌ها عضو بشی و بعد دوباره تلاش کنی:\n\n" + lines);
 }
 
+// window.confirm() داخل وب‌ویوی مینی‌اپ‌های شبیه بله/تلگرام معمولاً غیرفعاله یا
+// همیشه false برمی‌گردونه (بدون نمایش هیچ دیالوگی)، که باعث می‌شه هر اکشنی که
+// پشت "if (!confirm(...)) return" باشه عملاً هیچ‌وقت اجرا نشه. به‌جاش این تابع
+// اول WebApp.showConfirm (اگه موجود بود) و در غیر این صورت یک دیالوگ داخلیِ
+// خودمون رو نشون می‌ده.
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    if (WebApp && typeof WebApp.showConfirm === "function") {
+      try {
+        WebApp.showConfirm(message, (result) => resolve(!!result));
+        return;
+      } catch (e) {
+        // اگه پرتاب خطا کرد، به دیالوگ داخلی برمی‌گردیم
+      }
+    }
+    const overlay = el("confirm-overlay");
+    const yesBtn = el("confirm-yes");
+    const noBtn = el("confirm-no");
+    el("confirm-message").textContent = message;
+    overlay.classList.remove("hidden");
+
+    function cleanup(result) {
+      overlay.classList.add("hidden");
+      yesBtn.removeEventListener("click", onYes);
+      noBtn.removeEventListener("click", onNo);
+      resolve(result);
+    }
+    function onYes() { cleanup(true); }
+    function onNo() { cleanup(false); }
+    yesBtn.addEventListener("click", onYes);
+    noBtn.addEventListener("click", onNo);
+  });
+}
+
 function showOnly(id) {
   ["loading", "unauthorized", "phone-step", "main-view"].forEach((x) => {
     el(x).classList.toggle("hidden", x !== id);
@@ -156,7 +190,7 @@ function switchTab(tabId) {
 }
 
 el("resign-btn").addEventListener("click", async () => {
-  if (!confirm("مطمئنی می‌خوای از مدیریت انصراف بدی؟ برای مدیر شدن دوباره، نیاز به تایید مجدد مالک داری.")) return;
+  if (!(await showConfirm("مطمئنی می‌خوای از مدیریت انصراف بدی؟ برای مدیر شدن دوباره، نیاز به تایید مجدد مالک داری."))) return;
   const r = await api("/api/resign", {});
   if (r.ok) location.reload();
 });
@@ -275,12 +309,14 @@ el("block-btn").addEventListener("click", async () => {
 
 el("delete-btn").addEventListener("click", async () => {
   if (!currentTarget) return;
-  if (!confirm("مطمئنی می‌خوای این گفتگو حذف بشه؟ این کار قابل بازگشت نیست.")) return;
+  if (!(await showConfirm("مطمئنی می‌خوای این گفتگو حذف بشه؟ این کار قابل بازگشت نیست."))) return;
   const r = await api("/api/delete_thread", { target_chat_id: currentTarget, unit_id: currentUnitId });
   if (r.ok) {
     currentTarget = null;
     currentUnitId = null;
     loadThreads();
+  } else {
+    alert(r.message || "حذف گفتگو با خطا مواجه شد.");
   }
 });
 
@@ -377,9 +413,10 @@ async function loadAdmins() {
       if (res.ok) alert("ذخیره شد ✅");
     });
     card.querySelector('[data-act="remove"]').addEventListener("click", async () => {
-      if (!confirm(`مطمئنی می‌خوای «${label}» رو از مدیریت حذف کنی؟`)) return;
+      if (!(await showConfirm(`مطمئنی می‌خوای «${label}» رو از مدیریت حذف کنی؟`))) return;
       const res = await api("/api/admins/remove", { chat_id: admin.chat_id });
       if (res.ok) loadAdmins();
+      else alert("حذف مدیر با خطا مواجه شد.");
     });
     box.appendChild(card);
   });
@@ -406,7 +443,7 @@ async function loadUnits() {
         <button class="danger-btn small-btn" data-act="delete">حذف</button>
       </div>`;
     card.querySelector('[data-act="delete"]').addEventListener("click", async () => {
-      if (!confirm(`مطمئنی می‌خوای واحد «${u.name}» حذف بشه؟`)) return;
+      if (!(await showConfirm(`مطمئنی می‌خوای واحد «${u.name}» حذف بشه؟`))) return;
       const res = await api("/api/units/delete", { unit_id: u.id });
       if (res.ok) loadUnits();
       else alert(res.message || "این واحد قابل حذف نیست.");

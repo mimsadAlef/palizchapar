@@ -92,6 +92,11 @@ def set_awaiting_owner_verify(chat_id: int, value: bool):
         conn.execute("UPDATE users SET awaiting_owner_verify=%s WHERE chat_id=%s", (value, chat_id))
 
 
+def set_awaiting_admin_request(chat_id: int, value: bool):
+    with get_db() as conn:
+        conn.execute("UPDATE users SET awaiting_admin_request=%s WHERE chat_id=%s", (value, chat_id))
+
+
 def set_phone(chat_id: int, phone: str):
     with get_db() as conn:
         conn.execute("UPDATE users SET phone=%s WHERE chat_id=%s", (phone, chat_id))

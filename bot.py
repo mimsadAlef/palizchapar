@@ -49,6 +49,13 @@ def change_unit_keyboard():
     return bale_api.inline_keyboard([[{"text": "🔄 تغییر واحد", "callback_data": "change_unit"}]])
 
 
+def maybe_change_unit_keyboard() -> dict | None:
+    """دکمه‌ی «تغییر واحد» فقط وقتی معنا داره که بیش از یک واحد وجود داشته باشه."""
+    if len(db.list_units()) > 1:
+        return change_unit_keyboard()
+    return None
+
+
 # --------------------------------------------------------------------------
 # عضویت اجباری در کانال‌ها - قبل از پردازش هر پیام (چه کاربر عادی چه ادمین)
 # --------------------------------------------------------------------------
@@ -100,20 +107,24 @@ def unit_choice_keyboard(units: list[dict]) -> dict:
 
 def prompt_unit_selection_or_ready(chat_id: int, user: dict):
     """بعد از حل‌شدن نام مستعار صدا زده می‌شه: اگه کاربر واحد فعال داره،
-    پیام آماده‌ی ارسال رو نشون می‌ده؛ وگرنه لیست واحدها رو برای انتخاب می‌فرسته."""
+    پیام آماده‌ی ارسال رو نشون می‌ده؛ وگرنه لیست واحدها رو برای انتخاب می‌فرسته
+    (مگر اینکه فقط یک واحد وجود داشته باشه که در اون صورت خودکار انتخاب می‌شه)."""
     if user["active_unit_id"] is not None:
         unit = db.get_unit(user["active_unit_id"])
         if unit is not None:
             label = db.display_name(user)
             bale_api.send_message(
                 chat_id, ready_to_send_text(label) + f"\n\n(واحد فعلی: {unit['name']})",
-                reply_markup=change_unit_keyboard(),
+                reply_markup=maybe_change_unit_keyboard(),
             )
             return
 
     units = db.list_units()
     if not units:
         bale_api.send_message(chat_id, "فعلاً واحدی برای گفتگو تعریف نشده. لطفاً بعداً دوباره امتحان کن.")
+        return
+    if len(units) == 1:
+        handle_unit_selected(chat_id, user, units[0]["id"])
         return
     bale_api.send_message(chat_id, "لطفاً واحد مورد نظرت رو انتخاب کن:", reply_markup=unit_choice_keyboard(units))
 
@@ -129,7 +140,7 @@ def handle_unit_selected(chat_id: int, user: dict, unit_id: int):
     bale_api.send_message(
         chat_id,
         f"به واحد «{unit['name']}» وصل شدی.\n" + ready_to_send_text(label),
-        reply_markup=change_unit_keyboard(),
+        reply_markup=maybe_change_unit_keyboard(),
     )
 
 
@@ -216,6 +227,9 @@ def handle_message(message: dict):
     if text == "/unit":
         if user["is_admin"] or user["is_owner"]:
             return  # واحد فقط برای کاربر عادی معناداره
+        if len(db.list_units()) <= 1:
+            bale_api.send_message(chat_id, "فعلاً فقط یک واحد تعریف شده، امکان تغییر واحد وجود نداره.")
+            return
         db.set_active_unit(chat_id, None)
         return prompt_unit_selection_or_ready(chat_id, db.get_or_create_user(chat_id))
 
@@ -279,6 +293,12 @@ def handle_contact_shared(chat_id: int, user: dict, phone: str):
             )
         return
 
+    if user["awaiting_admin_request"]:
+        db.set_awaiting_admin_request(chat_id, False)
+        db.set_phone(chat_id, phone)
+        register_admin_request(chat_id, db.get_or_create_user(chat_id))
+        return
+
     db.set_phone(chat_id, phone)
     bale_api.send_message(chat_id, "شماره‌ت با موفقیت ثبت شد ✅", reply_markup=bale_api.remove_keyboard())
 
@@ -319,8 +339,19 @@ def handle_admin_request(chat_id: int, user: dict):
         bale_api.send_message(chat_id, "درخواست مدیر شدنت قبلاً ثبت شده و منتظر تایید مالکه.")
         return
 
+    db.set_awaiting_admin_request(chat_id, True)
+    bale_api.send_message(
+        chat_id,
+        "برای ثبت درخواست مدیر شدن، لطفاً اول شماره تلفنت رو با دکمه‌ی زیر بفرست:",
+        reply_markup=bale_api.contact_request_keyboard("📱 ارسال شماره و ثبت درخواست"),
+    )
+
+
+def register_admin_request(chat_id: int, user: dict):
+    """بعد از دریافت شماره تلفن صدا زده می‌شه: همین‌جا درخواست واقعاً ثبت و به مالک اطلاع داده می‌شه."""
     db.create_admin_request(chat_id)
-    bale_api.send_message(chat_id, "✅ درخواستت برای مدیر شدن ثبت شد و برای مالک ارسال شد. به‌محض تایید بهت خبر می‌دیم.")
+    bale_api.send_message(chat_id, "✅ درخواستت برای مدیر شدن ثبت شد و برای مالک ارسال شد. به‌محض تایید بهت خبر می‌دیم.",
+                           reply_markup=bale_api.remove_keyboard())
 
     display = db.display_name(user)
     for owner_id in db.list_owner_chat_ids():
@@ -393,8 +424,11 @@ def handle_callback(callback_query: dict):
         prompt_unit_selection_or_ready(chat_id, user)
 
     elif data == "change_unit":
-        db.set_active_unit(chat_id, None)
-        prompt_unit_selection_or_ready(chat_id, db.get_or_create_user(chat_id))
+        if len(db.list_units()) <= 1:
+            bale_api.send_message(chat_id, "فعلاً فقط یک واحد تعریف شده، امکان تغییر واحد وجود نداره.")
+        else:
+            db.set_active_unit(chat_id, None)
+            prompt_unit_selection_or_ready(chat_id, db.get_or_create_user(chat_id))
 
     elif data.startswith("unit:"):
         try:

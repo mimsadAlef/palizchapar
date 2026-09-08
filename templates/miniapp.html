@@ -73,6 +73,18 @@
         <div id="units-list" class="list-box"></div>
       </section>
     </div>
+
+    <!-- دیالوگ تایید سفارشی: window.confirm() داخل وب‌ویوی مینی‌اپ‌ها معمولاً کار
+         نمی‌کنه یا همیشه false برمی‌گردونه، پس به‌جاش از این استفاده می‌کنیم -->
+    <div id="confirm-overlay" class="confirm-overlay hidden">
+      <div class="confirm-box">
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-no" class="tab-btn">انصراف</button>
+          <button id="confirm-yes" class="danger-btn">تایید</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>

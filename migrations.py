@@ -141,6 +141,15 @@ MIGRATIONS: list[tuple[str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "0003_admin_request_after_phone",
+        [
+            # درخواست مدیر شدن دیگه فوری (با زدن لینک توکن) ثبت نمی‌شه؛ اول باید
+            # شماره تلفن گرفته بشه، بعد درخواست ساخته بشه. این پرچم وضعیت
+            # «منتظر شماره برای ثبت درخواست» رو نگه می‌داره.
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS awaiting_admin_request BOOLEAN NOT NULL DEFAULT FALSE",
+        ],
+    ),
 ]
 
 
